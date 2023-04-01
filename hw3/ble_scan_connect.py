@@ -1,5 +1,4 @@
 # ble_scan_connect.py:
-import time
 from bluepy.btle import Peripheral, UUID
 from bluepy.btle import Scanner, DefaultDelegate
 
@@ -11,13 +10,6 @@ class ScanDelegate(DefaultDelegate):
                 print ("Discovered device", dev.addr)
         elif isNewData:
             print ("Received new data from", dev.addr)
-
-def enable_notify(ch):
-    setup_data = b"\x01\x00"
-    #notify_handle = ch.getHandle() + 2
-    notify_handle = ch.getHandle()
-    res = dev.writeCharacteristic(notify_handle, setup_data, withResponse=True)
-    print(res)
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(1.0)
@@ -32,16 +24,12 @@ for dev in devices:
     n += 1
     for (adtype, desc, value) in dev.getScanData():
         print (" %s = %s" % (desc, value))
-#        if "Galaxy" in value:
-#            myDevice = n - 1
-#            print("//////////////////////////////////////////////////////////////////////////////////////////////////////\n\n")
 
 print(myDevice)
 number = input('Enter your device number: ')
 print ('Device', number)
 num = int(number)
 print (addr[num])
-
 
 print ("Connecting...")
 dev = Peripheral(addr[num], 'random')
@@ -53,36 +41,47 @@ try:
     for ch in testService.getCharacteristics():
         print (str(ch))
         print("properties: "+ ch.propertiesToString())
-        print('%#x'%ch.getHandle())
     print("===================") 
+    print("test 0xfff4")
     ch = dev.getCharacteristics(uuid=UUID(0xfff4))[0] 
     if (ch.supportsRead()):
-        print("xxx")
+        print("test read")
         print (ch.read())
+        print("read AC")
     ch_cccd = ch.getDescriptors(forUUID=0x2902)[0] 
     #print(ch.getDescriptors()[0].uuid)
     #ch_cccd.write(b"\0x01\0x00", True)
     #print(ch_cccd.uuid)
-    print(ch_cccd.read())
-    print("start notify")
-    #enable_notify(ch_cccd)
-    while True:
-        #time.sleep(0.2)
-        if dev.waitForNotifications(100000):
-            print("Yes")
+    #dev.writeCharacteristic(ch_cccd.handle, bytes([1,0]), withResponse=True)
+    #print(ch_cccd.read())
+    if ("WRITE" in ch.propertiesToString()):
+        print("test write")
+        ch.write(b"a", withResponse=True)
+        if (ch.read()==b'a'):
+            print("write AC")
         else:
-            print("Not Yet")
+            print("write WA")
 
+    if ("INDICATE" in ch.propertiesToString()):
+        dev.writeCharacteristic(ch_cccd.handle, bytes([2,0]), withResponse=True)
+        print(ch_cccd.read())
+        print("test indicate")
+        while True:
+            if dev.waitForNotifications(10):
+                print("indicate AC")  
+                break
+            print("not receive data")
+            break
 
     if ("NOTIFY" in ch.propertiesToString()):
-        print("start notifying")
-        enable_notify(ch)
+        dev.writeCharacteristic(ch_cccd.handle, bytes([1,0]), withResponse=True)
+        print(ch_cccd.read())
+        print("test notify")
         while True:
-            if dev.waitForNotifications(1.0):
-                print("notification success")
-                #time.sleep(0.2)
-            else:
-                print("no notification")
-
+            if dev.waitForNotifications(10):
+                print("notify AC")
+                break
+            print("not receive data")
+            break
 finally:
     dev.disconnect()
